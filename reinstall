@@ -1,7 +1,0 @@
-#!/bin/bash
-
-ts -K
-make clean
-make
-sudo make uninstall
-sudo make install

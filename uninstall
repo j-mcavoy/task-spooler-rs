@@ -1,4 +1,0 @@
-#!/bin/bash
-
-ts -K
-sudo make uninstall

@@ -573,7 +573,7 @@ static void get_terminal_width() {
     term_width = ws.ws_col;
 }
 
-int main(int argc, char **argv) {
+int main_c(int argc, char **argv) {
     int errorlevel = 0;
 
     init_version();
