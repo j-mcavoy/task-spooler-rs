@@ -1,13 +1,15 @@
 use super::msg;
-use std::time::{Duration, SystemTime};
+use std::{
+  sync::RwLock,
+  time::{Duration, SystemTime},
+};
 
-pub type JobId = u64;
+pub type JobId = u16;
 
 pub struct Job {
-  next: Box<Option<Job>>,
-  jobid: i32,
-  command: String,
-  state: JobState,
+  jobid: JobId,
+  command: std::process::Command,
+  state: RwLock<JobState>,
   result: msg::Result,
   output_filename: String,
   store_output: i32,
@@ -21,7 +23,6 @@ pub struct Job {
   label: String,
   info: Procinfo,
   num_slots: i32,
-  num_gpus: i32,
 }
 pub struct Procinfo {
   ptr: String,
@@ -38,12 +39,12 @@ pub enum JobState {
   Queued,
   Allocating,
   Running,
-  Finished,
+  Finished(ExitCode),
   Skipped,
   HoldingClient,
 }
 
-pub enum ExitCodes {
+pub enum ExitCode {
   Ok = 0,
   UnknownError = -1,
   QueueFull = 2,

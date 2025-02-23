@@ -1,4 +1,3 @@
-use super::*;
 pub enum Request {
   Queue,
   Tail,

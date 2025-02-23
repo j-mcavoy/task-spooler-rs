@@ -1,4 +1,3 @@
-use clap::Args;
 use std::os::raw::c_char;
 
 #[link(name = "extern", kind = "static")]

@@ -4,6 +4,62 @@ use std::path::PathBuf;
 
 type Var = String;
 
+#[allow(non_snake_case)]
+#[derive(Args, Clone)]
+#[group(required = false, multiple = false)]
+pub struct Opt {
+  /// When adding a job to tsp, we can specify how it will be run and how the results will be collected:
+
+  /// Do not store the standard output/error in a file at $TMPDIR - let it use the file descriptors decided by the calling process. If it is not used, the jobid for the new task will be output to stdout.
+  #[arg(short = 'n')]
+  StoreOutput: bool,
+  /// Pass the output through gzip (only if -n ). Note that the output files will not have a .gz extension.
+  #[arg(short = 'z')]
+  GZip: bool,
+  /// Do not put the task into the background. Wait for the command to run without detaching from the terminal. The exit code will be that of the command, and if used together with -n, no result will be stored in the queue.
+  #[arg(short = 'f')]
+  Follow: bool,
+  /// Mail the results of the command (output and exit code) to $TS_MAILTO , or to the $USER using /usr/sbin/sendmail.  Look at ENVIRONMENT.
+  #[arg(short = 'm')]
+  Mail: bool,
+  /// Add a label to the task, which will appear next to its command when listing the queue. It makes more comfortable distinguishing similar commands with different goals.
+  #[arg(short = 'L', value_name = "label")]
+  Label: Var,
+
+  /// Run the command only after the last command finished.  It does not depend on how its dependency ends.
+  #[arg(short = 'd')]
+  Dependent: bool,
+
+  /// Run the command only after the specified job IDs finished.  It does not depend on how its dependencies end.
+  #[arg(short = 'D', value_name = "id,...")]
+  Dependencies: Vec<JobId>,
+
+  /// Run the command only if the job of given id finished well (errorlevel = 0). This
+  /// new task enqueued depends on the result of the previous command. If the task is not
+  /// run, it is considered as failed for further dependencies.  If the server doesn't have
+  /// the  job id in its list, it will be considered as if the job failed.
+  #[arg(short = 'W', value_name = "id,...")]
+  DependenciesWell: Vec<JobId>,
+
+  /// In the case the queue is full (due to TS_MAXCONN or system limits), by default tsp will block the enqueuing command. Using -B, if the queue is full it will exit returning the value 2 instead of blocking.
+  #[arg(short = 'b')]
+  Blocking: bool,
+
+  /// Keep  two  different  output files for the command stdout and stderr. stdout goes to the file announced by tsp (look at -o), and stderr goes to the stdout file with an additional ".e". For example, /tmp/ts-out.SKsDw8 and /tmp/ts-out.SKsDw8.e.  Only the stdout
+  /// file gets created with mkstemp, ensuring it does not overwrite any other; the ".e" will be overwritten if it existed.
+  #[arg(short = 'E')]
+  EOutput: bool,
+
+  /// Set the log name to the specified name. Do not include any path in the specified name.
+  #[arg(short = 'O', value_name = "name")]
+  Output: Var,
+
+  /// Run the command only if there are num slots free in the queue. Without it, the job will run if there is one slot free. For example, if you use the queue to feed cpu cores, and you know that a job will take two cores, with -N you can let tsp know that.
+  #[arg(short = 'N', value_name = "num")]
+  Num: usize,
+}
+
+#[allow(non_snake_case)]
 #[derive(Args)]
 #[group(required = false, multiple = false)]
 pub struct Action {
@@ -98,7 +154,7 @@ pub struct Action {
   Kill: Option<JobId>,
 
   /// Make the named job (or the last in the queue) urgent - this means that it goes forward in the queue so it can run as soon as possible.
-  #[arg(short = 'U', value_name = "id")]
+  #[arg(short = 'u', value_name = "id")]
   Urgent: Option<JobId>,
 
   /// Show information about the named job (or the last run). It will show the command line, some times related to the task, and also any information resulting from TS_ENV (Look at ENVIRONMENT).
@@ -106,9 +162,32 @@ pub struct Action {
   Info: Option<JobId>,
   //    /// -U <id-id>
   //    /// Interchange the queue positions of the named jobs (separated by a hyphen and no spaces).
-  //    #[arg(short = "U" ,value_name = "id")]
-  //    Interchange: InterchangeS,
+  #[arg(short = 'U', value_name = "id-id")]
+  Interchange: Option<InterchangeS>,
 }
 
 #[derive(Clone)]
-struct InterchangeS(JobId, JobId);
+struct InterchangeS {
+  ids: String,
+}
+
+impl From<String> for InterchangeS {
+  fn from(value: String) -> InterchangeS {
+    InterchangeS { ids: value }
+  }
+}
+
+impl TryInto<(JobId, JobId)> for InterchangeS {
+  type Error = String;
+  fn try_into(self) -> std::result::Result<(JobId, JobId), Self::Error> {
+    if let Some((lhs, rhs)) = self.ids.split_once("-") {
+      if let (Ok(lhs), Ok(rhs)) = (
+        JobId::from_str_radix(lhs, 10),
+        JobId::from_str_radix(rhs, 10),
+      ) {
+        return Ok((lhs, rhs));
+      }
+    }
+    Err("Not 2 id's".into())
+  }
+}

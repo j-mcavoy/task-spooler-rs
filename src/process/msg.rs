@@ -2,7 +2,7 @@ use super::job::*;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 pub enum Msg {
   KillServer,
   NewJob(NewJob),
@@ -25,7 +25,7 @@ pub enum Msg {
   UrgentOk(Option<JobId>),
   GetState(Option<JobId>),
   AnswerState(Option<JobId>),
-  SwapJobs(Option<JobId>),
+  SwapJobs((JobId, JobId)),
   SwapJobsOk(Option<JobId>),
   Info(Option<JobId>),
   InfoData(Option<JobId>),
@@ -68,29 +68,27 @@ pub struct Msg {
 }
 */
 
-#[derive(Default, Debug, Serialize, Deserialize)]
-struct NewJob {
+#[derive(PartialEq, Default, Debug, Serialize, Deserialize)]
+pub struct NewJob {
   command_size: i32,
-  store_output: i32,
-  should_keep_finished: i32,
+  store_output: bool,
+  should_keep_finished: bool,
   label_size: i32,
   env_size: i32,
   depend_on_size: i32,
-  wait_enqueuing: i32,
-  num_slots: i32,
-  gpus: i32,
-  wait_free_gpus: i32,
+  wait_enqueuing: bool,
+  num_slots: usize,
 }
 #[derive(Default, Debug, Serialize, Deserialize)]
-struct Output {
+pub struct Output {
   ofilename_size: usize,
-  store_output: i32,
-  pid: u32,
+  store_output: bool,
+  pid: u16,
 }
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Result {
-  errorlevel: i32,
-  died_by_signal: i32,
+  errorlevel: u8,
+  died_by_signal: bool,
   signal: i32,
   user_ms: f32,
   system_ms: f32,
