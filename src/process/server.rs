@@ -2,7 +2,7 @@ use super::msg::Msg;
 use bincode::deserialize;
 use log::*;
 use thiserror::Error;
-use uds::UnixSeqpacketListener;
+use tokio_seqpacket::{UnixSeqpacket, UnixSeqpacketListener};
 pub mod env;
 mod handle;
 use env::*;
@@ -13,7 +13,7 @@ pub struct Exe;
 
 #[derive(Default)]
 pub struct Server {
-  listner: Option<UnixSeqpacketListener>,
+  listner: Option<UnixSeqpacket>,
   env: Env,
   queue: Queue,
 }
@@ -26,36 +26,43 @@ impl Server {
     }
   }
 
-  pub fn connect(&mut self) -> anyhow::Result<()> {
-    if let Some(listner) = Some(UnixSeqpacketListener::bind(super::SOCK)?) {
+  pub async fn connect(&mut self) -> anyhow::Result<()> {
+    debug!("connecting server");
+    let _ = UnixSeqpacketListener::bind(super::SOCK);
+    if let Some(listner) = Some(UnixSeqpacket::connect(super::SOCK).await?) {
       self.listner = Some(listner);
+      debug!("connected");
       Ok(())
     } else {
       Err(ServerError::NotStarted.into())
     }
   }
 
-  pub fn restart(&mut self) -> anyhow::Result<()> {
+  pub async fn restart(&mut self) -> anyhow::Result<()> {
     self.stop()?;
-    self.connect()?;
+    self.connect().await?;
     Ok(())
   }
+
   pub fn stop(&mut self) -> anyhow::Result<()> {
+    self
+      .listner
+      .as_mut()
+      .unwrap()
+      .shutdown(std::net::Shutdown::Both)
+      .unwrap();
     self.listner = None;
     debug!("Stopping server");
     Ok(std::fs::remove_file(super::SOCK)?)
   }
 
-  pub fn run(&mut self) -> anyhow::Result<()> {
-    let (conn, _addr) = self
-      .listner
-      .as_ref()
-      .expect("not connected")
-      .accept_unix_addr()?;
+  pub async fn run(&mut self) -> anyhow::Result<()> {
+    let listner = self.listner.as_ref().expect("not connected");
 
+    debug!("running..");
     loop {
       let buffer = &mut [0; 12];
-      let _ = conn.recv(buffer)?;
+      let _ = listner.recv(buffer).await;
       debug!("server: {buffer:?}");
       let msg: Msg = deserialize(buffer)?;
       debug!("server: {msg:?}");
@@ -63,7 +70,7 @@ impl Server {
         break;
       }
     }
-    Ok(self.stop()?)
+    self.stop()
   }
 }
 

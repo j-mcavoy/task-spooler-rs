@@ -1,5 +1,10 @@
 #![feature(never_type)]
 #![feature(try_trait_v2)]
+mod cli;
+mod process;
+use bincode::serialize;
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use cli::{action::Action, Cli};
 use log::debug;
 use process::{
   client::Client,
@@ -7,29 +12,34 @@ use process::{
   server::{env::Env, Server},
 };
 
-mod cli;
-//mod ffi;
-mod process;
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
   env_logger::init();
   let env = Env::default();
-  let cli = cli::cli();
-  let mut server = Server::new(env);
   let mut client = Client::default();
 
-  if server.connect().is_err() {
-    server.restart()?;
-  };
+  let cli = Cli::parse();
 
-  server.run()?;
+  debug!("{cli:?}");
+
+  if client.connect().is_err() {
+    let mut server = Server::new(env);
+    if server.connect().await.is_err() {
+      debug!("Starting server");
+      server.connect().await?;
+      tokio::spawn(async move {
+        server.run().await.unwrap();
+      });
+    };
+  }
 
   client.connect()?;
 
-  client.send_msg(Msg::KillAll(None))?;
-  client.send_msg(Msg::SwapJobs((45, 54)))?;
+  let msg = cli.to_msg();
+  debug!("{msg:?}");
+  debug!("msg: {:?}", serialize(&msg));
+  client.send_msg(msg)?;
   client.send_msg(Msg::KillServer)?;
-  server.stop()?;
+
   Ok(())
 }

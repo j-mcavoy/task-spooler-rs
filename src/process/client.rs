@@ -13,7 +13,6 @@ impl Client {
   pub fn send_msg(&self, msg: Msg) -> Result<usize, anyhow::Error> {
     if let Some(conn) = &self.conn {
       let bytes: Vec<u8> = serialize(&msg)?;
-      debug!("{bytes:?}");
       Ok(conn.send(bytes.as_slice())?)
     } else {
       Err(ClientError::NotConnected.into())
